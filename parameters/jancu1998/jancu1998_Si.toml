@@ -1,0 +1,42 @@
+model_type = "jancu1998"
+
+# Jancu, Scholz, Beltram, Bassani, Phys. Rev. B 57, 6493 (1998), Table II.
+lattice_constant = 5.430
+cutoff = 2.6
+
+[onsite.a]
+Es = -2.0196
+Ep = 4.5448
+Ed = 14.1836
+Esstar = 19.6748
+delta3 = 0.0195
+
+[onsite.c]
+Es = -2.0196
+Ep = 4.5448
+Ed = 14.1836
+Esstar = 19.6748
+delta3 = 0.0195
+
+[hopping]
+sss   = -1.9413
+sps   = 2.7836
+pss   = 2.7836
+sSss  = -1.6933
+sssS  = -1.6933
+sSsSs = -3.3081
+sSps  = 2.8428
+psSs  = 2.8428
+pps   = 4.1068
+ppp   = -1.5934
+sds   = -2.7998
+dss   = -2.7998
+sSds  = -0.7003
+dsSs  = -0.7003
+pds   = -2.1073
+dps   = -2.1073
+pdp   = 1.9977
+dpp   = 1.9977
+dds   = -1.2327
+ddp   = 2.5145
+ddd   = -2.4734

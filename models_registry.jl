@@ -12,6 +12,7 @@
 # ============================================================
 
 register_model!("orthogonal_sk", :OrthogonalSKModel, joinpath(@__DIR__, "models", "orthogonal_sk_model.jl"))
+register_model!("jancu1998", :Jancu1998Model, joinpath(@__DIR__, "models", "jancu1998_model.jl"))
 
 # To add another model:
 # register_model!("your_model_name", :YourModelType, joinpath(@__DIR__, "models", "your_model.jl"))

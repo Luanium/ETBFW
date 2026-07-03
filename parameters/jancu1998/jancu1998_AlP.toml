@@ -1,0 +1,45 @@
+model_type = "jancu1998"
+
+# Jancu, Scholz, Beltram, Bassani, Phys. Rev. B 57, 6493 (1998), Table III.
+# Polar III-V material. Sublattice a = anion (P), c = cation (Al).
+# Energy zero at valence-band maximum.
+lattice_constant = 5.4635
+cutoff = 2.7
+
+[onsite.a]
+Es = -5.3355
+Ep = 3.3471
+Ed = 14.1717
+Esstar = 20.5963
+delta3 = 0.0196
+
+[onsite.c]
+Es = 0.9573
+Ep = 6.3392
+Ed = 14.1717
+Esstar = 20.5963
+delta3 = 0.0073
+
+# Two-center SK integrals for the a(anion)->c(cation) bond, eV.
+[hopping]
+sss   = -1.7403
+sSss  = -1.6448    # s*_a,s_c
+sssS  = -1.4307    # s_a,s*_c
+sSsSs = -3.6444
+sps   = 2.6146      # s_a,p_c
+pss   = 2.7804      # p_a,s_c
+sSps  = 2.0632      # s*_a,p_c
+psSs  = 2.3361      # p_a,s*_c
+pps   = 4.0355
+ppp   = -1.3077
+sds   = -2.5253      # s_a,d_c
+dss   = -2.1687      # d_a,s_c
+sSds  = -0.7810      # s*_a,d_c
+dsSs  = -0.7211      # d_a,s*_c
+pds   = -1.6750       # p_a,d_c
+dps   = -1.8239       # d_a,p_c
+pdp   = 1.8760
+dpp   = 2.1848
+dds   = -1.3479
+ddp   = 2.3750
+ddd   = -1.8464
