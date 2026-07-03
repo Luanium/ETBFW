@@ -27,6 +27,7 @@ struct HoppingRule
 end
 
 struct OrthogonalSKParams
+    species_orbitals::Dict{Symbol,Vector{String}}
     onsite::Dict{Tuple{Symbol,String},Float64}
     hopping_rules::Dict{Tuple{Symbol,String,Symbol,String},HoppingRule}
     cutoff::Float64
@@ -34,9 +35,9 @@ end
 
 struct PreparedHopping
     atom_from::Int
-    orb_from::Int
     atom_to::Int
-    orb_to::Int
+    gi::Int
+    gj::Int
     R::Vector{Int}
     t::ComplexF64
 end
@@ -44,9 +45,12 @@ end
 struct OrthogonalSKModel <: AbstractETBModel
     system::System
     params::OrthogonalSKParams
-    onsite_energies::Dict{Tuple{Int,Int},Float64}   # (atom_idx, local_orb_idx) -> energy
+    num_bands::Int
+    onsite_energies::Dict{Int,Float64}   # gi -> energy
     hoppings::Vector{PreparedHopping}
 end
+
+num_bands(model::OrthogonalSKModel) = model.num_bands
 
 # ------------------------------------------------------------
 # Parameter parsing
@@ -70,26 +74,24 @@ function parse_parameters(::Type{OrthogonalSKModel}, system::System, param_file:
         error("Parameter file incompatible. Expected model_type = 'orthogonal_sk', found '$(model_type === nothing ? "missing" : model_type)'.")
     end
 
-    species_orbitals = Dict{Symbol,Set{String}}()
+    raw_onsite = get(raw, "onsite", Dict())
+    species_orbitals = Dict{Symbol,Vector{String}}()
     for atom in system.atoms
-        s = get!(species_orbitals, atom.species, Set{String}())
-        for orb in atom.orbitals
-            push!(s, orb)
+        species = atom.species
+        if !haskey(species_orbitals, species)
+            key = string(species)
+            if !haskey(raw_onsite, key)
+                error("Onsite block for species :$(species) not found in parameter file.")
+            end
+            species_orbitals[species] = sort(collect(keys(raw_onsite[key])))
         end
     end
     present_species = collect(keys(species_orbitals))
 
     onsite_dict = Dict{Tuple{Symbol,String},Float64}()
-    raw_onsite = get(raw, "onsite", Dict())
     for (species, orbs) in species_orbitals
         key = string(species)
-        if !haskey(raw_onsite, key)
-            error("Onsite block for species :$(species) not found in parameter file.")
-        end
         for orb in orbs
-            if !haskey(raw_onsite[key], orb)
-                error("Onsite energy for orbital \"$(orb)\" of species :$(species) not found.")
-            end
             onsite_dict[(species, orb)] = Float64(raw_onsite[key][orb])
         end
     end
@@ -130,7 +132,7 @@ function parse_parameters(::Type{OrthogonalSKModel}, system::System, param_file:
         end
     end
 
-    return OrthogonalSKParams(onsite_dict, hopping_dict, cutoff)
+    return OrthogonalSKParams(species_orbitals, onsite_dict, hopping_dict, cutoff)
 end
 
 # ------------------------------------------------------------
@@ -148,10 +150,21 @@ scaling.
 function build_model(::Type{OrthogonalSKModel}, system::System, param_file::String)
     params = parse_parameters(OrthogonalSKModel, system, param_file)
 
-    onsite_energies = Dict{Tuple{Int,Int},Float64}()
+    idx_map = Dict{Tuple{Int,String},Int}()
+    idx = 1
     for (i, atom) in enumerate(system.atoms)
-        for (j, orb) in enumerate(atom.orbitals)
-            onsite_energies[(i, j)] = params.onsite[(atom.species, orb)]
+        for orb in params.species_orbitals[atom.species]
+            idx_map[(i, orb)] = idx
+            idx += 1
+        end
+    end
+    num_bands_val = idx - 1
+
+    onsite_energies = Dict{Int,Float64}()
+    for (i, atom) in enumerate(system.atoms)
+        for orb in params.species_orbitals[atom.species]
+            gi = idx_map[(i, orb)]
+            onsite_energies[gi] = params.onsite[(atom.species, orb)]
         end
     end
 
@@ -160,38 +173,36 @@ function build_model(::Type{OrthogonalSKModel}, system::System, param_file::Stri
 
     for nb in neighbor_list
         atom_i, atom_j = system.atoms[nb.i], system.atoms[nb.j]
-        for (oi, orb_i) in enumerate(atom_i.orbitals), (oj, orb_j) in enumerate(atom_j.orbitals)
+        for orb_i in params.species_orbitals[atom_i.species], orb_j in params.species_orbitals[atom_j.species]
             rule = params.hopping_rules[(atom_i.species, orb_i, atom_j.species, orb_j)]
             t = rule.t0 * exp(-rule.beta * (nb.distance - rule.d0))
-            push!(hoppings, PreparedHopping(nb.i, oi, nb.j, oj, nb.R, ComplexF64(t)))
+            gi = idx_map[(nb.i, orb_i)]
+            gj = idx_map[(nb.j, orb_j)]
+            push!(hoppings, PreparedHopping(nb.i, nb.j, gi, gj, nb.R, ComplexF64(t)))
         end
     end
 
-    return OrthogonalSKModel(system, params, onsite_energies, hoppings)
+    return OrthogonalSKModel(system, params, num_bands_val, onsite_energies, hoppings)
 end
 
 """
     build_hamiltonian(model::OrthogonalSKModel, k::Vector{Float64}) -> Matrix{ComplexF64}
 
-Implements the framework's `build_hamiltonian` interface using the
-framework's shared orbital indexing convention (`orbital_index_map`).
+Implements the framework's `build_hamiltonian` interface.
 """
 function build_hamiltonian(model::OrthogonalSKModel, k::Vector{Float64})
     system = model.system
-    N = num_orbitals(system)
+    N = model.num_bands
     H = zeros(ComplexF64, N, N)
-    idx = orbital_index_map(system)
 
-    for ((atom_i, orb_i), E) in model.onsite_energies
-        gi = idx[(atom_i, orb_i)]
+    for (gi, E) in model.onsite_energies
         H[gi, gi] += E
     end
 
     for hop in model.hoppings
-        gi = idx[(hop.atom_from, hop.orb_from)]
-        gj = idx[(hop.atom_to, hop.orb_to)]
+        gi, gj = hop.gi, hop.gj
 
-        dR = system.lattice.vectors * hop.R
+        dR = get_dR(system.lattice, hop.R)
         pos_from = system.atoms[hop.atom_from].position
         pos_to = system.atoms[hop.atom_to].position
         d = dR + (pos_to - pos_from)

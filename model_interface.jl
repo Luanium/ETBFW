@@ -57,10 +57,9 @@ function build_hamiltonian end
     num_bands(model::AbstractETBModel) -> Int
 
 Number of bands (Hamiltonian matrix dimension) produced by this model.
-Default implementation assumes one basis state per orbital declared in
-the system; override if a model uses a different basis size (e.g. spin doubling).
+Must be implemented by each concrete model.
 """
-num_bands(model::AbstractETBModel) = num_orbitals(model.system)
+function num_bands end
 
 """
     show_params(model::AbstractETBModel)

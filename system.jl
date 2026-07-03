@@ -16,12 +16,10 @@ A single atom in the system.
 
 - `species`   : chemical species / site label (e.g. :A, :Fe, :C1)
 - `position`  : Cartesian coordinates (Angstrom)
-- `orbitals`  : list of orbital labels living on this atom (e.g. ["s"], ["px","py","pz"])
 """
 struct Atom
     species::Symbol
     position::Vector{Float64}
-    orbitals::Vector{String}
 end
 
 """
@@ -32,7 +30,36 @@ primitive vector). Works for 1D/2D/3D periodicity by padding with large
 vacuum vectors in non-periodic directions (a common convention, e.g. QuantumATK-style).
 """
 struct Lattice
-    vectors::Matrix{Float64}
+    a1::Union{Vector{Float64}, Nothing}
+    a2::Union{Vector{Float64}, Nothing}
+    a3::Union{Vector{Float64}, Nothing}
+end
+
+function get_lattice_params(lattice::Lattice)
+    valid_vecs = Vector{Float64}[]
+    valid_indices = Int[]
+    
+    if !isnothing(lattice.a1); push!(valid_vecs, lattice.a1); push!(valid_indices, 1); end
+    if !isnothing(lattice.a2); push!(valid_vecs, lattice.a2); push!(valid_indices, 2); end
+    if !isnothing(lattice.a3); push!(valid_vecs, lattice.a3); push!(valid_indices, 3); end
+    
+    dim = length(valid_vecs)
+    if dim == 0
+        return zeros(Float64, 0, 3), zeros(Float64, 0), valid_indices
+    end
+    
+    A = hcat(valid_vecs...) # 3 x dim
+    pseudo_inv = inv(A' * A) * A' # dim x 3
+    row_norms = [norm(pseudo_inv[k, :]) for k in 1:dim]
+    return pseudo_inv, row_norms, valid_indices
+end
+
+function get_dR(lattice::Lattice, R::Vector{Int})
+    v = zeros(Float64, 3)
+    if !isnothing(lattice.a1); v += R[1] * lattice.a1; end
+    if !isnothing(lattice.a2); v += R[2] * lattice.a2; end
+    if !isnothing(lattice.a3); v += R[3] * lattice.a3; end
+    return v
 end
 
 """
@@ -45,6 +72,7 @@ model's `parse_parameters` / initialization routine.
 mutable struct System
     lattice::Lattice
     atoms::Vector{Atom}
+    dim::Int
 end
 
 """
@@ -52,15 +80,20 @@ end
 
 Construct an empty system with the given lattice, ready for atoms to be added.
 """
-System(lattice::Lattice) = System(lattice, Atom[])
+function System(lattice::Lattice)
+    dim = (!isnothing(lattice.a1) ? 1 : 0) + 
+          (!isnothing(lattice.a2) ? 1 : 0) + 
+          (!isnothing(lattice.a3) ? 1 : 0)
+    return System(lattice, Atom[], dim)
+end
 
 """
-    add_atom!(system::System, species::Symbol, position::Vector{Float64}, orbitals::Vector{String}=["s"])
+    add_atom!(system::System, species::Symbol, position::Vector{Float64})
 
 Add an atom to the system.
 """
-function add_atom!(system::System, species::Symbol, position::Vector{Float64}, orbitals::Vector{String}=["s"])
-    push!(system.atoms, Atom(species, position, orbitals))
+function add_atom!(system::System, species::Symbol, position::Vector{Float64})
+    push!(system.atoms, Atom(species, position))
     return system
 end
 
@@ -69,28 +102,4 @@ end
 """
 num_atoms(system::System) = length(system.atoms)
 
-"""
-    num_orbitals(system::System) -> Int
 
-Total number of orbitals in the system (i.e. the Hamiltonian matrix dimension).
-"""
-num_orbitals(system::System) = sum(length(a.orbitals) for a in system.atoms; init=0)
-
-"""
-    orbital_index_map(system::System) -> Dict{Tuple{Int,Int},Int}
-
-Maps (atom_index, local_orbital_index) -> global basis index (1-based),
-in atom order. This is a framework utility so that every model builds
-its Hamiltonian with a consistent, shared indexing convention.
-"""
-function orbital_index_map(system::System)
-    idx_map = Dict{Tuple{Int,Int},Int}()
-    idx = 1
-    for (i, atom) in enumerate(system.atoms)
-        for j in 1:length(atom.orbitals)
-            idx_map[(i, j)] = idx
-            idx += 1
-        end
-    end
-    return idx_map
-end

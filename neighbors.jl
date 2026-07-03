@@ -71,8 +71,7 @@ function find_neighbors(system::System, cutoff::Float64; canonical::Bool=true)
     atoms = system.atoms
     n = length(atoms)
 
-    inv_V = inv(lattice.vectors)
-    row_norms = [norm(inv_V[k, :]) for k in 1:size(inv_V, 1)]
+    pseudo_inv, row_norms, valid_indices = get_lattice_params(lattice)
 
     for i in 1:n
         pos_i = atoms[i].position
@@ -80,12 +79,17 @@ function find_neighbors(system::System, cutoff::Float64; canonical::Bool=true)
             pos_j = atoms[j].position
             r_ij = pos_j - pos_i
 
-            center = -inv_V * r_ij
+            if system.dim == 0
+                center = Float64[]
+            else
+                center = -pseudo_inv * r_ij
+            end
 
-            ranges = ntuple(3) do k
+            ranges = [0:0, 0:0, 0:0]
+            for (k, v_idx) in enumerate(valid_indices)
                 lo = floor(Int, center[k] - cutoff * row_norms[k])
                 hi = ceil(Int, center[k] + cutoff * row_norms[k])
-                lo:hi
+                ranges[v_idx] = lo:hi
             end
 
             for n1 in ranges[1], n2 in ranges[2], n3 in ranges[3]
@@ -95,7 +99,7 @@ function find_neighbors(system::System, cutoff::Float64; canonical::Bool=true)
                     continue
                 end
 
-                d = lattice.vectors * R + r_ij
+                d = get_dR(lattice, R) + r_ij
                 dist = norm(d)
 
                 if dist <= cutoff && (dist > 1e-6 || i != j)

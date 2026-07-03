@@ -14,6 +14,7 @@
 using LinearAlgebra
 
 include("system.jl")
+include("crystals.jl")
 include("neighbors.jl")
 include("sk_table.jl")
 include("model_interface.jl")
