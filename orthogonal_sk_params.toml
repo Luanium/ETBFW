@@ -1,0 +1,22 @@
+model_type = "orthogonal_sk"
+
+# Onsite energies per species and orbital
+[onsite.A]
+s = 0.0
+
+[onsite.B]
+s = 1.0
+
+# Hopping rules per species pair and orbital pair.
+# t(d) = t0 * exp( -beta * (d - d0) )
+[hopping]
+cutoff = 1.1
+
+[hopping.A_A]
+"s-s" = { t0 = -1.0, d0 = 1.0, beta = 0.0 }
+
+[hopping.A_B]
+"s-s" = { t0 = -2.0, d0 = 1.0, beta = 0.0 }
+
+[hopping.B_B]
+"s-s" = { t0 = -2.0, d0 = 1.0, beta = 0.0 }
