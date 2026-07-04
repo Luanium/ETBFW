@@ -1,43 +1,25 @@
 model_type = "jancu1998"
 
 # J.-M. Jancu, R. Scholz, F. Beltram, F. Bassani, Phys. Rev. B 57, 6493 (1998).
-# Table II (C, Si, Ge), Table III (AlP, GaP, InP, AlAs, GaAs, InAs, AlSb, GaSb, InSb).
-#
-# Top-level concept is the PAIR, not "material": each [X_Y] block carries
-# its own onsite parameters for X and Y (since onsite energies are pair-context
-# dependent), plus the pair's hopping table, plus the pair's lattice_constant,
-# d0 (nearest-neighbor bond length) and cutoff. This lets a single unit cell
-# mix multiple pairs (e.g. Ga-As, In-P, Ga-P, In-As for a quaternary alloy)
-# without any artificial "material" grouping.
+# Onsite field naming: "s", "e" (s*), "p" (all px,py,pz), "d" (all d
+# orbitals) set group-common values; "px"/"py"/"pz"/"dxy"/... override
+# individually for that one orbital only.
 #
 # i_jk(d) = V0 * (d0/d)^eta   (Eq. 40), d0 = a*sqrt(3)/4.
 #
-# Coupling field naming: "<orb1><orb2><bond>" where orb1 is the orbital on the
-# first species of the pair (X), orb2 the orbital on the second species (Y),
-# and <bond> in {s,p,d} = sigma/pi/delta. s* is written "e". Examples:
-#   sss = s-s sigma
-#   sps = s(X)-p(Y) sigma ; pss = p(X)-s(Y) sigma
-#   ees = e-e sigma (s*-s* sigma)
-#   ses = s(X)-e(Y) sigma ; ess = e(X)-s(Y) sigma
-#   eps = e(X)-p(Y) sigma ; pes = p(X)-e(Y) sigma
-#   sds = s(X)-d(Y) sigma ; dss = d(X)-s(Y) sigma
-#   eds = e(X)-d(Y) sigma ; des = d(X)-e(Y) sigma
-#   pps, ppp, pds, dps, pdp, dpp, dds, ddp, ddd as usual.
-#
-# Table IX exponents: n_ees = n_ses = n_ess = 0 fixed;
-# n_dds = n_ddp = n_ddd = n_eds = n_des = 2 fixed;
-# sss, sps, pps, ppp, sds, eps, pds, pdp tabulated per pair.
-# Carbon (C_C): not tabulated in Table IX -> all non-fixed exponents set to 2.0000.
+# Coupling field naming: "<orb1><orb2><bond>" as before (sss, sps, pss,
+# ees, ses, ess, eps, pes, pps, ppp, sds, dss, eds, des, pds, dps, pdp,
+# dpp, dds, ddp, ddd).
 
 [C_C]
 lattice_constant = 3.5668
 cutoff = 2.7
 
 [C_C.C]
-Es = -1.0458
-Ep = 7.0850
-Ed = 27.9267
-Ee = 38.2661
+s = -1.0458
+p = 7.0850
+d = 27.9267
+e = 38.2661
 delta3 = 0.0
 
 [C_C.hopping]
@@ -68,10 +50,10 @@ lattice_constant = 5.430
 cutoff = 2.6
 
 [Si_Si.Si]
-Es = -2.0196
-Ep = 4.5448
-Ed = 14.1836
-Ee = 19.6748
+s = -2.0196
+p = 4.5448
+d = 14.1836
+e = 19.6748
 delta3 = 0.0195
 
 [Si_Si.hopping]
@@ -102,10 +84,10 @@ lattice_constant = 5.6563
 cutoff = 2.7
 
 [Ge_Ge.Ge]
-Es = -3.2967
-Ep = 4.6560
-Ed = 13.0143
-Ee = 19.1725
+s = -3.2967
+p = 4.6560
+d = 13.0143
+e = 19.1725
 delta3 = 0.1325
 
 [Ge_Ge.hopping]
@@ -136,17 +118,17 @@ lattice_constant = 5.4635
 cutoff = 2.7
 
 [P_Al.P]
-Es = -5.3355
-Ep = 3.3471
-Ed = 14.1717
-Ee = 20.5963
+s = -5.3355
+p = 3.3471
+d = 14.1717
+e = 20.5963
 delta3 = 0.0196
 
 [P_Al.Al]
-Es = 0.9573
-Ep = 6.3392
-Ed = 14.1717
-Ee = 20.5963
+s = 0.9573
+p = 6.3392
+d = 14.1717
+e = 20.5963
 delta3 = 0.0073
 
 [P_Al.hopping]
@@ -177,17 +159,17 @@ lattice_constant = 5.4509
 cutoff = 2.7
 
 [P_Ga.P]
-Es = -5.3379
-Ep = 3.3453
-Ed = 14.0431
-Ee = 20.3952
+s = -5.3379
+p = 3.3453
+d = 14.0431
+e = 20.3952
 delta3 = 0.0301
 
 [P_Ga.Ga]
-Es = 0.4005
-Ep = 6.3844
-Ed = 14.0431
-Ee = 20.3952
+s = 0.4005
+p = 6.3844
+d = 14.0431
+e = 20.3952
 delta3 = 0.0124
 
 [P_Ga.hopping]
@@ -218,17 +200,17 @@ lattice_constant = 5.8687
 cutoff = 2.9
 
 [P_In.P]
-Es = -5.3321
-Ep = 3.3447
-Ed = 12.7756
-Ee = 18.8738
+s = -5.3321
+p = 3.3447
+d = 12.7756
+e = 18.8738
 delta3 = 0.0228
 
 [P_In.In]
-Es = 0.3339
-Ep = 6.4965
-Ed = 12.7756
-Ee = 18.8738
+s = 0.3339
+p = 6.4965
+d = 12.7756
+e = 18.8738
 delta3 = 0.1124
 
 [P_In.hopping]
@@ -259,17 +241,17 @@ lattice_constant = 5.660
 cutoff = 2.8
 
 [As_Al.As]
-Es = -5.9819
-Ep = 3.5826
-Ed = 13.0570
-Ee = 19.5133
+s = -5.9819
+p = 3.5826
+d = 13.0570
+e = 19.5133
 delta3 = 0.1721
 
 [As_Al.Al]
-Es = 0.9574
-Ep = 6.3386
-Ed = 13.0570
-Ee = 19.5133
+s = 0.9574
+p = 6.3386
+d = 13.0570
+e = 19.5133
 delta3 = 0.0072
 
 [As_Al.hopping]
@@ -300,17 +282,17 @@ lattice_constant = 5.6532
 cutoff = 2.8
 
 [As_Ga.As]
-Es = -5.9819
-Ep = 3.5820
-Ed = 13.1023
-Ee = 19.4220
+s = -5.9819
+p = 3.5820
+d = 13.1023
+e = 19.4220
 delta3 = 0.1824
 
 [As_Ga.Ga]
-Es = -0.4028
-Ep = 6.3853
-Ed = 13.1023
-Ee = 19.4220
+s = -0.4028
+p = 6.3853
+d = 13.1023
+e = 19.4220
 delta3 = 0.0408
 
 [As_Ga.hopping]
@@ -341,17 +323,17 @@ lattice_constant = 6.0583
 cutoff = 3.0
 
 [As_In.As]
-Es = -5.9801
-Ep = 3.5813
-Ed = 12.9540
-Ee = 17.8411
+s = -5.9801
+p = 3.5813
+d = 12.9540
+e = 17.8411
 delta3 = 0.1763
 
 [As_In.In]
-Es = 0.3333
-Ep = 4.6939
-Ed = 12.9540
-Ee = 17.8411
+s = 0.3333
+p = 4.6939
+d = 12.9540
+e = 17.8411
 delta3 = 0.4008
 
 [As_In.hopping]
@@ -382,17 +364,17 @@ lattice_constant = 6.1355
 cutoff = 3.0
 
 [Sb_Al.Sb]
-Es = -4.9565
-Ep = 4.0739
-Ed = 11.4691
-Ee = 16.4173
+s = -4.9565
+p = 4.0739
+d = 11.4691
+e = 16.4173
 delta3 = 0.3912
 
 [Sb_Al.Al]
-Es = 0.9521
-Ep = 6.4939
-Ed = 11.4691
-Ee = 16.4173
+s = 0.9521
+p = 6.4939
+d = 11.4691
+e = 16.4173
 delta3 = 0.0079
 
 [Sb_Al.hopping]
@@ -423,17 +405,17 @@ lattice_constant = 6.0959
 cutoff = 3.0
 
 [Sb_Ga.Sb]
-Es = -4.9586
-Ep = 4.0735
-Ed = 11.5944
-Ee = 16.6388
+s = -4.9586
+p = 4.0735
+d = 11.5944
+e = 16.6388
 delta3 = 0.4552
 
 [Sb_Ga.Ga]
-Es = -0.4003
-Ep = 6.3801
-Ed = 11.5944
-Ee = 16.6388
+s = -0.4003
+p = 6.3801
+d = 11.5944
+e = 16.6388
 delta3 = 0.0432
 
 [Sb_Ga.hopping]
@@ -464,17 +446,17 @@ lattice_constant = 6.4794
 cutoff = 3.2
 
 [Sb_In.Sb]
-Es = -4.9527
-Ep = 4.0797
-Ed = 11.2647
-Ee = 16.1664
+s = -4.9527
+p = 4.0797
+d = 11.2647
+e = 16.1664
 delta3 = 0.4495
 
 [Sb_In.In]
-Es = 0.3389
-Ep = 6.4919
-Ed = 11.2647
-Ee = 16.1664
+s = 0.3389
+p = 6.4919
+d = 11.2647
+e = 16.1664
 delta3 = 0.1230
 
 [Sb_In.hopping]

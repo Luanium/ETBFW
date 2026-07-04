@@ -1,45 +1,13 @@
 # ============================================================
 # models/jancu1998_model.jl
 # Constructor-based usage: model = Jancu1998Model(system, param_file; soc=true)
+# Orbitals are plain Symbols (:s, :e, :px, :py, :pz, :dxy, :dyz,
+# :dzx, :dx2y2, :dz2), shopped dynamically against sk_table.jl's
+# available_orbitals()/required_couplings() functions.
 # ============================================================
 
 using TOML
 using LinearAlgebra
-
-const JANCU_SK_ORBITAL = Dict(
-    "s" => SK_S, "e" => SK_SSTAR,
-    "px" => SK_PX, "py" => SK_PY, "pz" => SK_PZ,
-    "dxy" => SK_DXY, "dyz" => SK_DYZ, "dzx" => SK_DZX,
-    "dx2-y2" => SK_DX2Y2, "dz2" => SK_DZ2,
-)
-
-const JANCU_ONSITE_FIELD_TO_ORBITALS = Dict(
-    "Es" => ["s"], "Ee" => ["e"], "Ep" => ["px", "py", "pz"],
-    "Ed" => ["dxy", "dyz", "dzx", "dx2-y2", "dz2"],
-)
-
-const JANCU_ORBITAL_ORDER = ["s", "e", "px", "py", "pz", "dxy", "dyz", "dzx", "dx2-y2", "dz2"]
-
-const JANCU_KIND = Dict(
-    "s" => "s", "e" => "e",
-    "px" => "p", "py" => "p", "pz" => "p",
-    "dxy" => "d", "dyz" => "d", "dzx" => "d", "dx2-y2" => "d", "dz2" => "d",
-)
-
-const JANCU_FIXED_EXPONENT = Dict(
-    "ees" => 0.0, "ses" => 0.0, "ess" => 0.0,
-    "dds" => 2.0, "ddp" => 2.0, "ddd" => 2.0,
-    "eds" => 2.0, "des" => 2.0,
-)
-
-const JANCU_SWAP_FIELD = Dict(
-    "sps" => "pss", "pss" => "sps",
-    "eps" => "pes", "pes" => "eps",
-    "sds" => "dss", "dss" => "sds",
-    "eds" => "des", "des" => "eds",
-    "pds" => "dps", "dps" => "pds",
-    "pdp" => "dpp", "dpp" => "pdp",
-)
 
 struct JancuHopEntry
     V0::Float64
@@ -48,8 +16,8 @@ end
 
 struct JancuOnsite
     species::String
-    orbitals::Vector{String}
-    energies::Dict{String,Float64}
+    orbitals::Vector{Symbol}
+    energies::Dict{Symbol,Float64}
     delta3::Union{Float64,Nothing}
 end
 
@@ -61,7 +29,7 @@ struct JancuPair
     cutoff::Float64
     onsite1::JancuOnsite
     onsite2::JancuOnsite
-    hopping::Dict{String,JancuHopEntry}
+    hopping::Dict{Symbol,JancuHopEntry}
 end
 
 struct JancuParams
@@ -72,7 +40,7 @@ struct Jancu1998Model <: AbstractETBModel
     system::System
     params::JancuParams
     atom_species::Vector{String}
-    atom_orbitals::Vector{Vector{String}}
+    atom_orbitals::Vector{Vector{Symbol}}
     n_bonds::Int
     soc::Bool
 end
@@ -86,60 +54,37 @@ function _require(raw::Dict, key::String, context::String)
     return raw[key]
 end
 
-function _parse_onsite(species::String, raw::Dict, context::String)
-    energies = Dict{String,Float64}()
-    orbitals = String[]
-    for field in ("Es", "Ee", "Ep", "Ed")
-        if haskey(raw, field)
-            val = Float64(raw[field])
-            for orb in JANCU_ONSITE_FIELD_TO_ORBITALS[field]
-                energies[orb] = val
-                push!(orbitals, orb)
-            end
-        end
-    end
-    isempty(orbitals) && error("Jancu1998 parameter file: species '$(species)' in $(context) has no recognized onsite energy fields (Es/Ee/Ep/Ed).")
-    orbitals = [o for o in JANCU_ORBITAL_ORDER if o in orbitals]
+"""
+    _parse_onsite(species, raw, context, param_file) -> JancuOnsite
+
+Delegates basis-set and onsite-energy shopping to the framework's
+`shop_onsite` (sk_table.jl), which handles group-level (`p`, `d`)
+and orbital-specific (`px`, `dxy`, ...) keys generically.
+"""
+function _parse_onsite(species::String, raw::Dict, context::String, param_file::String)
+    onsite_raw = Dict(k => v for (k, v) in raw if k != "delta3")
+    orbitals, energies = shop_onsite(onsite_raw, species, param_file)
+    isempty(orbitals) && error("Jancu1998 parameter file: species '$(species)' in $(context) has no recognized onsite energy fields.")
     delta3 = haskey(raw, "delta3") ? Float64(raw["delta3"]) : nothing
     return JancuOnsite(species, orbitals, energies, delta3)
 end
 
-function _required_hop_fields(orbitals1::Vector{String}, orbitals2::Vector{String})
-    fields = Set{String}()
-    for o1 in orbitals1, o2 in orbitals2
-        k1, k2 = JANCU_KIND[o1], JANCU_KIND[o2]
-        if k1 == "p" && k2 == "p"
-            push!(fields, "pps")
-            push!(fields, "ppp")
-        elseif k1 == "p" && k2 == "d"
-            push!(fields, "pds")
-            push!(fields, "pdp")
-        elseif k1 == "d" && k2 == "p"
-            push!(fields, "dps")
-            push!(fields, "dpp")
-        elseif k1 == "d" && k2 == "d"
-            push!(fields, "dds")
-            push!(fields, "ddp")
-            push!(fields, "ddd")
-        else
-            push!(fields, k1 * k2 * "s")
-        end
-    end
-    return fields
-end
+"""
+    _parse_hopping_table(raw, needed, context) -> Dict{Symbol,JancuHopEntry}
 
-function _parse_hopping_table(raw::Dict, needed::Set{String}, context::String)
-    hopping = Dict{String,JancuHopEntry}()
+Shops each required coupling key from the parameter file. Every value
+(V0 and eta) must be supplied by the file; missing entries or missing
+fields raise an error. No exponent or value is assumed by the model.
+"""
+function _parse_hopping_table(raw::Dict, needed::Set{Symbol}, context::String)
+    hopping = Dict{Symbol,JancuHopEntry}()
     for field in needed
-        haskey(raw, field) || error("$(context): hopping entry \"$(field)\" is required by the declared orbitals but is not listed in the parameter file.")
-        entry = raw[field]
-        haskey(entry, "V0") || error("$(context): hopping entry \"$(field)\" is missing V0.")
-        haskey(entry, "eta") || error("$(context): hopping entry \"$(field)\" is missing eta.")
-        eta = Float64(entry["eta"])
-        if haskey(JANCU_FIXED_EXPONENT, field) && eta != JANCU_FIXED_EXPONENT[field]
-            error("$(context): exponent for \"$(field)\" must be fixed to $(JANCU_FIXED_EXPONENT[field]) per Table IX caption, found $(eta).")
-        end
-        hopping[field] = JancuHopEntry(Float64(entry["V0"]), eta)
+        field_str = string(field)
+        haskey(raw, field_str) || error("$(context): hopping entry \"$(field_str)\" is required by the declared orbitals but is not listed in the parameter file.")
+        entry = raw[field_str]
+        haskey(entry, "V0") || error("$(context): hopping entry \"$(field_str)\" is missing V0.")
+        haskey(entry, "eta") || error("$(context): hopping entry \"$(field_str)\" is missing eta.")
+        hopping[field] = JancuHopEntry(Float64(entry["V0"]), Float64(entry["eta"]))
     end
     return hopping
 end
@@ -167,11 +112,11 @@ function _parse_jancu_parameters(param_file::String)
         d0 = a_lattice * sqrt(3.0) / 4.0
         cutoff = Float64(get(block, "cutoff", 0.45 * a_lattice))
 
-        onsite1 = _parse_onsite(sp1, _require(block, sp1, key), "$(key).$(sp1)")
-        onsite2 = _parse_onsite(sp2, _require(block, sp2, key), "$(key).$(sp2)")
+        onsite1 = _parse_onsite(sp1, _require(block, sp1, key), "$(key).$(sp1)", param_file)
+        onsite2 = _parse_onsite(sp2, _require(block, sp2, key), "$(key).$(sp2)", param_file)
 
         hopping_block = _require(block, "hopping", key)
-        needed = _required_hop_fields(onsite1.orbitals, onsite2.orbitals)
+        needed = required_couplings(vcat(onsite1.orbitals, onsite2.orbitals))
         hopping = _parse_hopping_table(hopping_block, needed, "$(key).hopping")
 
         pairs[(sp1, sp2)] = JancuPair(sp1, sp2, a_lattice, d0, cutoff, onsite1, onsite2, hopping)
@@ -211,7 +156,7 @@ function _mixed_onsite(params::JancuParams, sp_i::String, neighbor_species::Vect
     orbitals = nothing
     delta3_sum = 0.0
     any_delta3 = false
-    energies = Dict{String,Float64}()
+    energies = Dict{Symbol,Float64}()
 
     for (sp_j, n_j) in counts
         weight = n_j / N
@@ -252,14 +197,11 @@ function _max_cutoff(params::JancuParams, atom_species::Vector{String})
 end
 
 # ------------------------------------------------------------
-# Constructor (this is how the user builds the model)
+# Constructor
 # ------------------------------------------------------------
 
 """
     Jancu1998Model(system::System; param_file::String="models/Jancu1998.toml", soc::Bool=true)
-
-Constructor. Example:
-    model = Jancu1998Model(system; param_file="models/Jancu1998.toml", soc=true)
 """
 function Jancu1998Model(system::System; param_file::String="models/Jancu1998.toml", soc::Bool=true)
     params = _parse_jancu_parameters(param_file)
@@ -280,7 +222,7 @@ function Jancu1998Model(system::System; param_file::String="models/Jancu1998.tom
     neighbor_list = [nb for nb in find_neighbors(system, cutoff, canonical=false) if nb.i != nb.j]
     isempty(neighbor_list) && error("No nearest neighbors found within cutoff=$(cutoff); check system geometry.")
 
-    atom_orbitals = Vector{String}[]
+    atom_orbitals = Vector{Symbol}[]
     for (i, atom) in enumerate(system.atoms)
         sp_i = atom_species[i]
         neighbor_species = [atom_species[nb.j] for nb in neighbor_list if nb.i == i]
@@ -292,9 +234,6 @@ function Jancu1998Model(system::System; param_file::String="models/Jancu1998.tom
     return Jancu1998Model(system, params, atom_species, atom_orbitals, length(neighbor_list), soc)
 end
 
-"""
-    num_bands(model::Jancu1998Model) -> Int
-"""
 function num_bands(model::Jancu1998Model)
     spin_factor = model.soc ? 2 : 1
     return spin_factor * sum(length(orbs) for orbs in model.atom_orbitals)
@@ -320,24 +259,16 @@ end
 
 function _scaled_sk_integrals(pair::JancuPair, forward::Bool, distance::Float64)
     ratio = pair.d0 / distance
-    scaled = Dict{String,Float64}()
+    scaled = Dict{Symbol,Float64}()
     for (field, entry) in pair.hopping
         scaled[field] = entry.V0 * ratio^entry.eta
     end
-    v(field) = begin
-        lookup = forward ? field : get(JANCU_SWAP_FIELD, field, field)
-        haskey(scaled, lookup) ? scaled[lookup] : nothing
+    integ = Dict{Symbol,Float64}()
+    for field in keys(scaled)
+        lookup = forward ? field : swap_coupling_key(field)
+        haskey(scaled, lookup) && (integ[field] = scaled[lookup])
     end
-    return SKIntegrals(
-        sss=v("sss"), sps=v("sps"), pss=v("pss"),
-        sSss=v("ees"), sssS=v("ses"), sSsSs=v("ess"),
-        sSps=v("eps"), psSs=v("pes"),
-        pps=v("pps"), ppp=v("ppp"),
-        sds=v("sds"), dss=v("dss"),
-        sSds=v("eds"), dsSs=v("des"),
-        pds=v("pds"), dps=v("dps"), pdp=v("pdp"), dpp=v("dpp"),
-        dds=v("dds"), ddp=v("ddp"), ddd=v("ddd"),
-    )
+    return integ
 end
 
 """
@@ -373,7 +304,7 @@ function build_hamiltonian(model::Jancu1998Model, k::Vector{Float64})
         end
 
         if soc
-            p_positions = findall(o -> JANCU_KIND[o] == "p", orbitals)
+            p_positions = findall(o -> orbital_kind(o) == :p, orbitals)
             d3 = onsite.delta3 === nothing ? 0.0 : onsite.delta3
             if d3 != 0.0 && length(p_positions) == 3
                 soc_block = _p_soc_block(d3)
@@ -391,12 +322,10 @@ function build_hamiltonian(model::Jancu1998Model, k::Vector{Float64})
         nb.i == nb.j && continue
         sp1, sp2 = model.atom_species[nb.i], model.atom_species[nb.j]
         orb1, orb2 = model.atom_orbitals[nb.i], model.atom_orbitals[nb.j]
-        sk1 = [JANCU_SK_ORBITAL[o] for o in orb1]
-        sk2 = [JANCU_SK_ORBITAL[o] for o in orb2]
 
         pair, forward = _get_pair(p, sp1, sp2)
         integ = _scaled_sk_integrals(pair, forward, nb.distance)
-        block = sk_block(sk1, sk2, nb.d, integ)
+        block = sk_block(orb1, orb2, nb.d, integ)
 
         phase = exp(1im * dot(k, nb.d))
         base_i, base_j = offsets[nb.i], offsets[nb.j]

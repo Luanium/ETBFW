@@ -3,11 +3,13 @@
 #
 # Framework layer — general Slater-Koster two-center integral table.
 #
-# Provides the universal direction-cosine algebra for building
-# two-center hopping matrix elements between atomic orbitals
-# {s, s*, px, py, pz, dxy, dyz, dzx, dx2-y2, dz2} given the bond
-# direction cosines (l, m, n) and the relevant two-center integrals
-# (sss, sps, pps, ppp, sds, pds, pdp, dds, ddp, ddd, ...).
+# Orbitals and bond types are plain Symbols (e.g. :s, :px, :dxy,
+# :sigma, :pi, :delta). There is no fixed enum or basis-set struct:
+# any orbital symbol recognized below can be used by any model. A
+# model only needs to declare which orbitals/bonds are used and
+# supply the corresponding integral values in a Dict{Symbol,Float64}
+# (or Dict{Tuple{Symbol,Symbol,Symbol},Float64} keyed by
+# (orb_kind_a, orb_kind_b, bond_type) — see `sk_integral_key`).
 #
 # This is model-agnostic: any model (Jancu1998, orthogonal sp3, ...)
 # can call `sk_block` / `sk_matrix_element` to build its Hamiltonian
@@ -16,239 +18,207 @@
 # Reference: J.C. Slater and G.F. Koster, Phys. Rev. 94, 1498 (1954).
 # ============================================================
 
-"""
-    SKOrbital
-
-Enumerates the atomic orbitals supported by the general Slater-Koster
-table, in the canonical order used to index SK blocks.
-"""
-@enum SKOrbital begin
-    SK_S
-    SK_SSTAR
-    SK_PX
-    SK_PY
-    SK_PZ
-    SK_DXY
-    SK_DYZ
-    SK_DZX
-    SK_DX2Y2
-    SK_DZ2
-end
-
-"""
-    orbital_kind(orb::SKOrbital) -> Symbol
-
-Returns the angular-momentum family (`:s`, `:p`, or `:d`) of an orbital,
-used to look up the correct two-center integral name.
-"""
-function orbital_kind(orb::SKOrbital)
-    if orb == SK_S || orb == SK_SSTAR
-        return :s
-    elseif orb == SK_PX || orb == SK_PY || orb == SK_PZ
-        return :p
-    else
-        return :d
-    end
-end
-
-"""
-    orbital_from_label(label::String) -> SKOrbital
-
-Parses a string orbital label ("s", "s*", "px", "py", "pz", "dxy",
-"dyz", "dzx", "dx2-y2", "dz2") into an `SKOrbital`.
-"""
-function orbital_from_label(label::String)
-    mapping = Dict(
-        "s" => SK_S, "s*" => SK_SSTAR,
-        "px" => SK_PX, "py" => SK_PY, "pz" => SK_PZ,
-        "dxy" => SK_DXY, "dyz" => SK_DYZ, "dzx" => SK_DZX,
-        "dx2-y2" => SK_DX2Y2, "dz2" => SK_DZ2,
-    )
-    haskey(mapping, label) || error("Unknown SK orbital label \"$(label)\".")
-    return mapping[label]
-end
-
-"""
-    SKIntegrals
-
-Two-center Slater-Koster integrals for a given (species_a, species_b)
-directed pair (a: source species, b: target species; asymmetric for
-polar bonds). Any field left as `nothing` is treated as zero.
-Field names follow the Slater-Koster/Jancu convention where the first
-orbital letter belongs to the source atom and the second to the target
-atom, e.g. `sps` = <s_a| H |p_b> (sσ), `pds` = <p_a| H |d_b> (pdσ).
-"""
-Base.@kwdef struct SKIntegrals
-    sss::Union{Float64,Nothing}     = nothing
-    sps::Union{Float64,Nothing}     = nothing   # <s_a|H|p_b>  sp sigma
-    pss::Union{Float64,Nothing}     = nothing   # <p_a|H|s_b>  sp sigma (reverse direction)
-    sSss::Union{Float64,Nothing}    = nothing   # <s*_a|H|s_b>
-    sssS::Union{Float64,Nothing}    = nothing   # <s_a|H|s*_b>
-    sSsSs::Union{Float64,Nothing}   = nothing   # <s*_a|H|s*_b>
-    sSps::Union{Float64,Nothing}    = nothing   # <s*_a|H|p_b>
-    psSs::Union{Float64,Nothing}    = nothing   # <p_a|H|s*_b>
-    pps::Union{Float64,Nothing}     = nothing
-    ppp::Union{Float64,Nothing}     = nothing
-    sds::Union{Float64,Nothing}     = nothing   # <s_a|H|d_b>
-    dss::Union{Float64,Nothing}     = nothing   # <d_a|H|s_b>
-    sSds::Union{Float64,Nothing}    = nothing   # <s*_a|H|d_b>
-    dsSs::Union{Float64,Nothing}    = nothing   # <d_a|H|s*_b>
-    pds::Union{Float64,Nothing}     = nothing   # <p_a|H|d_b>
-    dps::Union{Float64,Nothing}     = nothing   # <d_a|H|p_b>
-    pdp::Union{Float64,Nothing}     = nothing
-    dpp::Union{Float64,Nothing}     = nothing
-    dds::Union{Float64,Nothing}     = nothing
-    ddp::Union{Float64,Nothing}     = nothing
-    ddd::Union{Float64,Nothing}     = nothing
-end
-
-_z(x) = x === nothing ? 0.0 : x
-
-# ------------------------------------------------------------
-# Angular factors for d orbitals (Slater-Koster 1954, Table I-III).
-# l, m, n are direction cosines of the bond vector (from source to target).
-# ------------------------------------------------------------
-
 const SQRT3 = sqrt(3.0)
 
 """
-    sk_matrix_element(orb_a::SKOrbital, orb_b::SKOrbital, l, m, n, integrals::SKIntegrals) -> Float64
+    ORBITAL_KIND::Dict{Symbol,Symbol}
+
+Maps an orbital symbol to its angular-momentum family (`:s`, `:p`, or
+`:d`). New orbitals can be added here without touching any model file.
+"""
+const ORBITAL_KIND = Dict{Symbol,Symbol}(
+    :s => :s, :e => :s,
+    :px => :p, :py => :p, :pz => :p,
+    :dxy => :d, :dyz => :d, :dzx => :d, :dx2y2 => :d, :dz2 => :d,
+)
+
+orbital_kind(orb::Symbol) = ORBITAL_KIND[orb]
+
+"""
+    available_orbitals() -> Dict{Symbol,Symbol}
+
+Dictionary of all orbitals recognized by the SK table: orbital symbol
+-> angular-momentum kind (:s, :p, :d).
+"""
+available_orbitals() = ORBITAL_KIND
+
+"""
+    required_couplings(orbitals::Vector{Symbol}) -> Set{Symbol}
+
+Given a basis set of orbitals, returns the set of integral keys
+(e.g. :sss, :sps, :pps, :ppp, :pds, :dps, ...) required to build all
+matrix elements among them.
+"""
+function required_couplings(orbitals::Vector{Symbol})
+    fields = Set{Symbol}()
+    letter(orb) = orb == :e ? "e" : orbital_kind(orb) == :s ? "s" : orbital_kind(orb) == :p ? "p" : "d"
+    for o1 in orbitals, o2 in orbitals
+        k1, k2 = orbital_kind(o1), orbital_kind(o2)
+        l1, l2 = letter(o1), letter(o2)
+        if k1 == :p && k2 == :p
+            push!(fields, :pps)
+            push!(fields, :ppp)
+        elseif k1 == :d && k2 == :d
+            push!(fields, :dds)
+            push!(fields, :ddp)
+            push!(fields, :ddd)
+        elseif (k1 == :p && k2 == :d) || (k1 == :d && k2 == :p)
+            push!(fields, Symbol(l1 * l2 * "s"))
+            push!(fields, Symbol(l1 * l2 * "p"))
+        else
+            push!(fields, Symbol(l1 * l2 * "s"))
+        end
+    end
+    return fields
+end
+
+_z(integ::Dict{Symbol,Float64}, key::Symbol) = get(integ, key, 0.0)
+
+"""
+    sk_integral_key(orb_a, orb_b, bond) -> Symbol
+
+Builds the canonical integral key for orbital kinds `orb_a`, `orb_b`
+(e.g. `:s`, `:p`, `:d`, or `:e`) and bond type (`:sigma`, `:pi`,
+`:delta`), e.g. (:s, :p, :sigma) -> :sps, (:p, :p, :pi) -> :ppp.
+The bond-type is encoded as its first letter: sigma->s, pi->p, delta->d.
+"""
+function sk_integral_key(kind_a::Symbol, kind_b::Symbol, bond::Symbol)
+    letter(k) = k == :s ? "s" : k == :e ? "e" : k == :p ? "p" : k == :d ? "d" : error("Unknown orbital kind $(k)")
+    bl = bond == :sigma ? "s" : bond == :pi ? "p" : bond == :delta ? "d" : error("Unknown bond type $(bond)")
+    return Symbol(letter(kind_a) * letter(kind_b) * bl)
+end
+
+"""
+    sk_matrix_element(orb_a::Symbol, orb_b::Symbol, l, m, n, integ::Dict{Symbol,Float64}) -> Float64
 
 Universal Slater-Koster two-center matrix element <orb_a| H |orb_b>
 for a bond with direction cosines (l, m, n) pointing from the source
 atom (orbital `orb_a`) to the target atom (orbital `orb_b`), using the
-supplied two-center `integrals`. Implements the full s/s*/p/d table
-(Slater & Koster, 1954).
+supplied two-center integrals dict `integ` (keys are Symbols like
+`:sss`, `:sps`, `:pps`, `:ppp`, `:sds`, `:pds`, `:pdp`, `:dds`, `:ddp`,
+`:ddd`, and s*-related keys `:ees`, `:ses`, `:ess`, `:eps`, `:pes`,
+`:eds`, `:des`). Missing keys default to zero.
 """
-function sk_matrix_element(orb_a::SKOrbital, orb_b::SKOrbital, l::Float64, m::Float64, n::Float64, integ::SKIntegrals)
+function sk_matrix_element(orb_a::Symbol, orb_b::Symbol, l::Float64, m::Float64, n::Float64, integ::Dict{Symbol,Float64})
     ka, kb = orbital_kind(orb_a), orbital_kind(orb_b)
 
     # ---------------- s / s* block ----------------
     if ka == :s && kb == :s
-        if orb_a == SK_S && orb_b == SK_S
-            return _z(integ.sss)
-        elseif orb_a == SK_SSTAR && orb_b == SK_SSTAR
-            return _z(integ.sSsSs)
-        elseif orb_a == SK_SSTAR && orb_b == SK_S
-            return _z(integ.sSss)
-        elseif orb_a == SK_S && orb_b == SK_SSTAR
-            return _z(integ.sssS)
+        a_star, b_star = orb_a == :e, orb_b == :e
+        if !a_star && !b_star
+            return _z(integ, :sss)
+        elseif a_star && b_star
+            return _z(integ, :ess)
+        elseif a_star && !b_star
+            return _z(integ, :ses)
+        else
+            return _z(integ, :ses) # s(a)-s*(b): use "sses"-style key if provided
         end
     end
 
     # ---------------- s / s* <-> p ----------------
     if ka == :s && kb == :p
-        dc = orb_b == SK_PX ? l : orb_b == SK_PY ? m : n
-        coeff = orb_a == SK_S ? _z(integ.sps) : _z(integ.sSps)
+        dc = orb_b == :px ? l : orb_b == :py ? m : n
+        coeff = orb_a == :e ? _z(integ, :eps) : _z(integ, :sps)
         return dc * coeff
     end
     if ka == :p && kb == :s
-        dc = orb_a == SK_PX ? l : orb_a == SK_PY ? m : n
-        coeff = orb_b == SK_S ? _z(integ.pss) : _z(integ.psSs)
+        dc = orb_a == :px ? l : orb_a == :py ? m : n
+        coeff = orb_b == :e ? _z(integ, :pes) : _z(integ, :pss)
         return dc * coeff
     end
 
     # ---------------- p / p ----------------
     if ka == :p && kb == :p
-        return _pp_matrix_element(orb_a, orb_b, l, m, n, _z(integ.pps), _z(integ.ppp))
+        return _pp_matrix_element(orb_a, orb_b, l, m, n, _z(integ, :pps), _z(integ, :ppp))
     end
 
     # ---------------- s / s* <-> d ----------------
     if ka == :s && kb == :d
-        coeff = orb_a == SK_S ? _z(integ.sds) : _z(integ.sSds)
+        coeff = orb_a == :e ? _z(integ, :eds) : _z(integ, :sds)
         return _sd_angular(orb_b, l, m, n) * coeff
     end
     if ka == :d && kb == :s
-        coeff = orb_b == SK_S ? _z(integ.dss) : _z(integ.dsSs)
+        coeff = orb_b == :e ? _z(integ, :des) : _z(integ, :dss)
         return _sd_angular(orb_a, l, m, n) * coeff
     end
 
     # ---------------- p <-> d ----------------
     if ka == :p && kb == :d
-        return _pd_angular(orb_a, orb_b, l, m, n, _z(integ.pds), _z(integ.pdp))
+        return _pd_angular(orb_a, orb_b, l, m, n, _z(integ, :pds), _z(integ, :pdp))
     end
     if ka == :d && kb == :p
-        # <d|H|p> = <p|H|d> with source/target swapped; SK matrix elements
-        # for real orbitals are symmetric under simultaneous orbital swap
-        # and bond reversal (l,m,n)->(l,m,n) since d is even, p is odd:
-        # use dps/dpp integrals if provided, else reciprocal identity.
-        pds_ = integ.dps !== nothing ? _z(integ.dps) : _z(integ.pds)
-        pdp_ = integ.dpp !== nothing ? _z(integ.dpp) : _z(integ.pdp)
+        pds_ = haskey(integ, :dps) ? integ[:dps] : _z(integ, :pds)
+        pdp_ = haskey(integ, :dpp) ? integ[:dpp] : _z(integ, :pdp)
         return _pd_angular(orb_b, orb_a, l, m, n, pds_, pdp_)
     end
 
     # ---------------- d / d ----------------
     if ka == :d && kb == :d
-        return _dd_angular(orb_a, orb_b, l, m, n, _z(integ.dds), _z(integ.ddp), _z(integ.ddd))
+        return _dd_angular(orb_a, orb_b, l, m, n, _z(integ, :dds), _z(integ, :ddp), _z(integ, :ddd))
     end
 
     error("Unhandled SK orbital pair ($(orb_a), $(orb_b)).")
 end
 
-# p-p angular factor (clean, correct implementation; replaces the
-# placeholder pipe above which is dead code by construction order).
-function _pp_angular(orb_a::SKOrbital, orb_b::SKOrbital, l::Float64, m::Float64, n::Float64)
-    da = orb_a == SK_PX ? l : orb_a == SK_PY ? m : n
-    db = orb_b == SK_PX ? l : orb_b == SK_PY ? m : n
+function _pp_angular(orb_a::Symbol, orb_b::Symbol, l::Float64, m::Float64, n::Float64)
+    da = orb_a == :px ? l : orb_a == :py ? m : n
+    db = orb_b == :px ? l : orb_b == :py ? m : n
     return da, db
 end
 
-function _sd_angular(d_orb::SKOrbital, l::Float64, m::Float64, n::Float64)
-    if d_orb == SK_DXY
+function _sd_angular(d_orb::Symbol, l::Float64, m::Float64, n::Float64)
+    if d_orb == :dxy
         return SQRT3 * l * m
-    elseif d_orb == SK_DYZ
+    elseif d_orb == :dyz
         return SQRT3 * m * n
-    elseif d_orb == SK_DZX
+    elseif d_orb == :dzx
         return SQRT3 * n * l
-    elseif d_orb == SK_DX2Y2
+    elseif d_orb == :dx2y2
         return (SQRT3 / 2) * (l^2 - m^2)
-    elseif d_orb == SK_DZ2
+    elseif d_orb == :dz2
         return n^2 - (l^2 + m^2) / 2
     end
     error("Unknown d orbital $(d_orb).")
 end
 
-function _pd_angular(p_orb::SKOrbital, d_orb::SKOrbital, l::Float64, m::Float64, n::Float64, pds::Float64, pdp::Float64)
-    dc = p_orb == SK_PX ? l : p_orb == SK_PY ? m : n
-    others = p_orb == SK_PX ? (m, n) : p_orb == SK_PY ? (l, n) : (l, m)
-    a, b = others
-
-    if d_orb == SK_DXY
-        if p_orb == SK_PX
+function _pd_angular(p_orb::Symbol, d_orb::Symbol, l::Float64, m::Float64, n::Float64, pds::Float64, pdp::Float64)
+    if d_orb == :dxy
+        if p_orb == :px
             return SQRT3 * l^2 * m * pds + m * (1 - 2 * l^2) * pdp
-        elseif p_orb == SK_PY
+        elseif p_orb == :py
             return SQRT3 * m^2 * l * pds + l * (1 - 2 * m^2) * pdp
         else
             return SQRT3 * l * m * n * pds - 2 * l * m * n * pdp
         end
-    elseif d_orb == SK_DYZ
-        if p_orb == SK_PX
+    elseif d_orb == :dyz
+        if p_orb == :px
             return SQRT3 * l * m * n * pds - 2 * l * m * n * pdp
-        elseif p_orb == SK_PY
+        elseif p_orb == :py
             return SQRT3 * m^2 * n * pds + n * (1 - 2 * m^2) * pdp
         else
             return SQRT3 * n^2 * m * pds + m * (1 - 2 * n^2) * pdp
         end
-    elseif d_orb == SK_DZX
-        if p_orb == SK_PX
+    elseif d_orb == :dzx
+        if p_orb == :px
             return SQRT3 * l^2 * n * pds + n * (1 - 2 * l^2) * pdp
-        elseif p_orb == SK_PY
+        elseif p_orb == :py
             return SQRT3 * l * m * n * pds - 2 * l * m * n * pdp
         else
             return SQRT3 * n^2 * l * pds + l * (1 - 2 * n^2) * pdp
         end
-    elseif d_orb == SK_DX2Y2
-        if p_orb == SK_PX
+    elseif d_orb == :dx2y2
+        if p_orb == :px
             return (SQRT3 / 2) * l * (l^2 - m^2) * pds + l * (1 - l^2 + m^2) * pdp
-        elseif p_orb == SK_PY
+        elseif p_orb == :py
             return (SQRT3 / 2) * m * (l^2 - m^2) * pds - m * (1 + l^2 - m^2) * pdp
         else
             return (SQRT3 / 2) * n * (l^2 - m^2) * pds - n * (l^2 - m^2) * pdp
         end
-    elseif d_orb == SK_DZ2
-        if p_orb == SK_PX
+    elseif d_orb == :dz2
+        if p_orb == :px
             return l * (n^2 - (l^2 + m^2) / 2) * pds - SQRT3 * l * n^2 * pdp
-        elseif p_orb == SK_PY
+        elseif p_orb == :py
             return m * (n^2 - (l^2 + m^2) / 2) * pds - SQRT3 * m * n^2 * pdp
         else
             return n * (n^2 - (l^2 + m^2) / 2) * pds + SQRT3 * n * (l^2 + m^2) * pdp
@@ -257,51 +227,127 @@ function _pd_angular(p_orb::SKOrbital, d_orb::SKOrbital, l::Float64, m::Float64,
     error("Unknown d orbital $(d_orb).")
 end
 
-function _dd_angular(orb_a::SKOrbital, orb_b::SKOrbital, l::Float64, m::Float64, n::Float64, dds::Float64, ddp::Float64, ddd::Float64)
+function _dd_angular(orb_a::Symbol, orb_b::Symbol, l::Float64, m::Float64, n::Float64, dds::Float64, ddp::Float64, ddd::Float64)
     a, b = orb_a, orb_b
-    # Ensure symmetric handling regardless of argument order for identical-kind pairs
-    if a == SK_DXY && b == SK_DXY
+    if a == :dxy && b == :dxy
         return 3 * l^2 * m^2 * dds + (l^2 + m^2 - 4 * l^2 * m^2) * ddp + (n^2 + l^2 * m^2) * ddd
-    elseif (a == SK_DXY && b == SK_DYZ) || (a == SK_DYZ && b == SK_DXY)
+    elseif (a == :dxy && b == :dyz) || (a == :dyz && b == :dxy)
         return 3 * l * m^2 * n * dds + l * n * (1 - 4 * m^2) * ddp + l * n * (m^2 - 1) * ddd
-    elseif (a == SK_DXY && b == SK_DZX) || (a == SK_DZX && b == SK_DXY)
+    elseif (a == :dxy && b == :dzx) || (a == :dzx && b == :dxy)
         return 3 * l^2 * m * n * dds + m * n * (1 - 4 * l^2) * ddp + m * n * (l^2 - 1) * ddd
-    elseif a == SK_DYZ && b == SK_DYZ
+    elseif a == :dyz && b == :dyz
         return 3 * m^2 * n^2 * dds + (m^2 + n^2 - 4 * m^2 * n^2) * ddp + (l^2 + m^2 * n^2) * ddd
-    elseif (a == SK_DYZ && b == SK_DZX) || (a == SK_DZX && b == SK_DYZ)
+    elseif (a == :dyz && b == :dzx) || (a == :dzx && b == :dyz)
         return 3 * m * n^2 * l * dds + m * l * (1 - 4 * n^2) * ddp + m * l * (n^2 - 1) * ddd
-    elseif a == SK_DZX && b == SK_DZX
+    elseif a == :dzx && b == :dzx
         return 3 * n^2 * l^2 * dds + (n^2 + l^2 - 4 * n^2 * l^2) * ddp + (m^2 + n^2 * l^2) * ddd
-    elseif (a == SK_DXY && b == SK_DX2Y2) || (a == SK_DX2Y2 && b == SK_DXY)
+    elseif (a == :dxy && b == :dx2y2) || (a == :dx2y2 && b == :dxy)
         return (3.0 / 2) * l * m * (l^2 - m^2) * dds + 2 * l * m * (m^2 - l^2) * ddp + (l * m * (l^2 - m^2) / 2) * ddd
-    elseif (a == SK_DYZ && b == SK_DX2Y2) || (a == SK_DX2Y2 && b == SK_DYZ)
+    elseif (a == :dyz && b == :dx2y2) || (a == :dx2y2 && b == :dyz)
         return (3.0 / 2) * m * n * (l^2 - m^2) * dds - m * n * (1 + 2 * (l^2 - m^2)) * ddp + m * n * (1 + (l^2 - m^2) / 2) * ddd
-    elseif (a == SK_DZX && b == SK_DX2Y2) || (a == SK_DX2Y2 && b == SK_DZX)
+    elseif (a == :dzx && b == :dx2y2) || (a == :dx2y2 && b == :dzx)
         return (3.0 / 2) * n * l * (l^2 - m^2) * dds + n * l * (1 - 2 * (l^2 - m^2)) * ddp - n * l * (1 - (l^2 - m^2) / 2) * ddd
-    elseif a == SK_DX2Y2 && b == SK_DX2Y2
+    elseif a == :dx2y2 && b == :dx2y2
         return (3.0 / 4) * (l^2 - m^2)^2 * dds + (l^2 + m^2 - (l^2 - m^2)^2) * ddp + (n^2 + (l^2 - m^2)^2 / 4) * ddd
-    elseif (a == SK_DXY && b == SK_DZ2) || (a == SK_DZ2 && b == SK_DXY)
+    elseif (a == :dxy && b == :dz2) || (a == :dz2 && b == :dxy)
         return SQRT3 * l * m * (n^2 - (l^2 + m^2) / 2) * dds - 2 * SQRT3 * l * m * n^2 * ddp + (SQRT3 / 2) * l * m * (1 + n^2) * ddd
-    elseif (a == SK_DYZ && b == SK_DZ2) || (a == SK_DZ2 && b == SK_DYZ)
+    elseif (a == :dyz && b == :dz2) || (a == :dz2 && b == :dyz)
         return SQRT3 * m * n * (n^2 - (l^2 + m^2) / 2) * dds + SQRT3 * m * n * (l^2 + m^2 - n^2) * ddp - (SQRT3 / 2) * m * n * (l^2 + m^2) * ddd
-    elseif (a == SK_DZX && b == SK_DZ2) || (a == SK_DZ2 && b == SK_DZX)
+    elseif (a == :dzx && b == :dz2) || (a == :dz2 && b == :dzx)
         return SQRT3 * n * l * (n^2 - (l^2 + m^2) / 2) * dds + SQRT3 * n * l * (l^2 + m^2 - n^2) * ddp - (SQRT3 / 2) * n * l * (l^2 + m^2) * ddd
-    elseif (a == SK_DX2Y2 && b == SK_DZ2) || (a == SK_DZ2 && b == SK_DX2Y2)
+    elseif (a == :dx2y2 && b == :dz2) || (a == :dz2 && b == :dx2y2)
         return (SQRT3 / 2) * (l^2 - m^2) * (n^2 - (l^2 + m^2) / 2) * dds + SQRT3 * n^2 * (m^2 - l^2) * ddp + (SQRT3 / 4) * (1 + n^2) * (l^2 - m^2) * ddd
-    elseif a == SK_DZ2 && b == SK_DZ2
+    elseif a == :dz2 && b == :dz2
         return (n^2 - (l^2 + m^2) / 2)^2 * dds + 3 * n^2 * (l^2 + m^2) * ddp + (3.0 / 4) * (l^2 + m^2)^2 * ddd
     end
     error("Unknown d-d orbital pair ($(orb_a), $(orb_b)).")
 end
 
-function _pp_matrix_element(orb_a::SKOrbital, orb_b::SKOrbital, l::Float64, m::Float64, n::Float64, pps::Float64, ppp::Float64)
+function _pp_matrix_element(orb_a::Symbol, orb_b::Symbol, l::Float64, m::Float64, n::Float64, pps::Float64, ppp::Float64)
     da, db = _pp_angular(orb_a, orb_b, l, m, n)
     return da * db * pps + (Float64(orb_a == orb_b) - da * db) * ppp
 end
 
 """
-    sk_block(orbitals_a::Vector{SKOrbital}, orbitals_b::Vector{SKOrbital},
-             d::Vector{Float64}, integrals::SKIntegrals) -> Matrix{Float64}
+    ORBITAL_GROUPS::Dict{Symbol,Vector{Symbol}}
+
+Maps a group label (e.g. :p, :d) to its member orbitals, in canonical
+order. Used by `shop_onsite` to expand group-level onsite fields.
+"""
+const ORBITAL_GROUPS = Dict{Symbol,Vector{Symbol}}(
+    :s => [:s],
+    :e => [:e],
+    :p => [:px, :py, :pz],
+    :d => [:dxy, :dyz, :dzx, :dx2y2, :dz2],
+)
+
+"""
+    shop_onsite(raw::Dict, species::String, param_file::String) -> (orbitals::Vector{Symbol}, energies::Dict{Symbol,Float64})
+
+Generic onsite shopping utility. `raw` is the onsite sub-block for one
+species (plain field=>value pairs, e.g. from TOML). Recognizes both
+group-level keys (`"s"`, `"p"`, `"d"`, `"e"`) and orbital-specific keys
+(`"px"`, `"py"`, `"pz"`, `"dxy"`, ...):
+
+- A group key (e.g. `"p" = 1.2345`) sets the same value for every
+  orbital in that group and includes all of them in the basis.
+- A specific key (e.g. `"px" = 2.3456`) overrides the value for that
+  one orbital only. If the group key was absent, the specific key
+  alone includes just that orbital in the basis.
+- Unrecognized keys (not in `available_orbitals()`/`ORBITAL_GROUPS`)
+  trigger a warning identifying `species` and `param_file`, and are skipped.
+
+Returns the basis orbitals (in first-encountered order) and their
+energies.
+"""
+function shop_onsite(raw::Dict, species::String, param_file::String)
+    known = available_orbitals()
+    energies = Dict{Symbol,Float64}()
+    orbitals = Symbol[]
+
+    _add(orb, val) = begin
+        if orb in orbitals
+            energies[orb] = val
+        else
+            push!(orbitals, orb)
+            energies[orb] = val
+        end
+    end
+
+    for (field, val) in raw
+        sym = Symbol(field)
+        if haskey(ORBITAL_GROUPS, sym) && !haskey(known, sym)
+            for orb in ORBITAL_GROUPS[sym]
+                _add(orb, Float64(val))
+            end
+        elseif haskey(known, sym)
+            _add(sym, Float64(val))
+        else
+            @warn "orbital $(field) of atom $(species) in parameter file $(param_file) is not recognized in SK table"
+        end
+    end
+
+    return orbitals, energies
+end
+
+"""
+    swap_coupling_key(field::Symbol) -> Symbol
+
+Given an integral key (e.g. :sps, :pds, :eps), returns the key for the
+same physical integral with source/target orbitals swapped (e.g.
+:pss, :dps, :pes). Generic: works from the two orbital-kind letters
+and bond-type letter encoded in the 3-character key.
+"""
+function swap_coupling_key(field::Symbol)
+    s = string(field)
+    length(s) == 3 || error("swap_coupling_key: malformed integral key $(field).")
+    a, b, bond = s[1], s[2], s[3]
+    return Symbol(string(b, a, bond))
+end
+
+"""
+    sk_block(orbitals_a::Vector{Symbol}, orbitals_b::Vector{Symbol},
+             d::Vector{Float64}, integ::Dict{Symbol,Float64}) -> Matrix{Float64}
 
 Builds the full Slater-Koster hopping block between two orbital sets
 (e.g. all orbitals on atom a and all orbitals on atom b) for a bond
@@ -309,14 +355,14 @@ vector `d` (Cartesian, pointing from a to b). Internally normalizes
 `d` to direction cosines. Returns a `length(orbitals_a) x
 length(orbitals_b)` real matrix.
 """
-function sk_block(orbitals_a::Vector{SKOrbital}, orbitals_b::Vector{SKOrbital}, d::Vector{Float64}, integrals::SKIntegrals)
+function sk_block(orbitals_a::Vector{Symbol}, orbitals_b::Vector{Symbol}, d::Vector{Float64}, integ::Dict{Symbol,Float64})
     dist = sqrt(sum(abs2, d))
     dist > 1e-10 || error("sk_block: zero-length bond vector.")
     l, m, n = d[1] / dist, d[2] / dist, d[3] / dist
 
     block = zeros(Float64, length(orbitals_a), length(orbitals_b))
     for (ia, oa) in enumerate(orbitals_a), (ib, ob) in enumerate(orbitals_b)
-        block[ia, ib] = sk_matrix_element(oa, ob, l, m, n, integrals)
+        block[ia, ib] = sk_matrix_element(oa, ob, l, m, n, integ)
     end
     return block
 end
