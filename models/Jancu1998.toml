@@ -1,0 +1,501 @@
+model_type = "jancu1998"
+
+# J.-M. Jancu, R. Scholz, F. Beltram, F. Bassani, Phys. Rev. B 57, 6493 (1998).
+# Table II (C, Si, Ge), Table III (AlP, GaP, InP, AlAs, GaAs, InAs, AlSb, GaSb, InSb).
+#
+# Top-level concept is the PAIR, not "material": each [X_Y] block carries
+# its own onsite parameters for X and Y (since onsite energies are pair-context
+# dependent), plus the pair's hopping table, plus the pair's lattice_constant,
+# d0 (nearest-neighbor bond length) and cutoff. This lets a single unit cell
+# mix multiple pairs (e.g. Ga-As, In-P, Ga-P, In-As for a quaternary alloy)
+# without any artificial "material" grouping.
+#
+# i_jk(d) = V0 * (d0/d)^eta   (Eq. 40), d0 = a*sqrt(3)/4.
+#
+# Coupling field naming: "<orb1><orb2><bond>" where orb1 is the orbital on the
+# first species of the pair (X), orb2 the orbital on the second species (Y),
+# and <bond> in {s,p,d} = sigma/pi/delta. s* is written "e". Examples:
+#   sss = s-s sigma
+#   sps = s(X)-p(Y) sigma ; pss = p(X)-s(Y) sigma
+#   ees = e-e sigma (s*-s* sigma)
+#   ses = s(X)-e(Y) sigma ; ess = e(X)-s(Y) sigma
+#   eps = e(X)-p(Y) sigma ; pes = p(X)-e(Y) sigma
+#   sds = s(X)-d(Y) sigma ; dss = d(X)-s(Y) sigma
+#   eds = e(X)-d(Y) sigma ; des = d(X)-e(Y) sigma
+#   pps, ppp, pds, dps, pdp, dpp, dds, ddp, ddd as usual.
+#
+# Table IX exponents: n_ees = n_ses = n_ess = 0 fixed;
+# n_dds = n_ddp = n_ddd = n_eds = n_des = 2 fixed;
+# sss, sps, pps, ppp, sds, eps, pds, pdp tabulated per pair.
+# Carbon (C_C): not tabulated in Table IX -> all non-fixed exponents set to 2.0000.
+
+[C_C]
+lattice_constant = 3.5668
+cutoff = 2.7
+
+[C_C.C]
+Es = -1.0458
+Ep = 7.0850
+Ed = 27.9267
+Ee = 38.2661
+delta3 = 0.0
+
+[C_C.hopping]
+sss = { V0 = -4.3882, eta = 2.0000 }
+sps = { V0 =  5.4951, eta = 2.0000 }
+pss = { V0 =  5.4951, eta = 2.0000 }
+ees = { V0 = -2.3899, eta = 0.0000 }
+ses = { V0 = -2.3899, eta = 0.0000 }
+ess = { V0 = -2.6737, eta = 0.0000 }
+eps = { V0 =  5.1709, eta = 2.0000 }
+pes = { V0 =  5.1709, eta = 2.0000 }
+pps = { V0 =  7.5480, eta = 2.0000 }
+ppp = { V0 = -2.6363, eta = 2.0000 }
+sds = { V0 = -2.7655, eta = 2.0000 }
+dss = { V0 = -2.7655, eta = 2.0000 }
+eds = { V0 = -2.3034, eta = 2.0000 }
+des = { V0 = -2.3034, eta = 2.0000 }
+pds = { V0 = -2.1621, eta = 2.0000 }
+dps = { V0 = -2.1621, eta = 2.0000 }
+pdp = { V0 =  3.9281, eta = 2.0000 }
+dpp = { V0 =  3.9281, eta = 2.0000 }
+dds = { V0 = -4.1813, eta = 2.0000 }
+ddp = { V0 =  4.9779, eta = 2.0000 }
+ddd = { V0 = -3.9884, eta = 2.0000 }
+
+[Si_Si]
+lattice_constant = 5.430
+cutoff = 2.6
+
+[Si_Si.Si]
+Es = -2.0196
+Ep = 4.5448
+Ed = 14.1836
+Ee = 19.6748
+delta3 = 0.0195
+
+[Si_Si.hopping]
+sss = { V0 = -1.9413, eta = 3.672 }
+sps = { V0 =  2.7836, eta = 2.488 }
+pss = { V0 =  2.7836, eta = 2.488 }
+ees = { V0 = -1.6933, eta = 0.0000 }
+ses = { V0 = -1.6933, eta = 0.0000 }
+ess = { V0 = -3.3081, eta = 0.0000 }
+eps = { V0 =  2.8428, eta = 1.919 }
+pes = { V0 =  2.8428, eta = 1.919 }
+pps = { V0 =  4.1068, eta = 2.187 }
+ppp = { V0 = -1.5934, eta = 3.711 }
+sds = { V0 = -2.7998, eta = 1.869 }
+dss = { V0 = -2.7998, eta = 1.869 }
+eds = { V0 = -0.7003, eta = 2.0000 }
+des = { V0 = -0.7003, eta = 2.0000 }
+pds = { V0 = -2.1073, eta = 1.830 }
+dps = { V0 = -2.1073, eta = 1.830 }
+pdp = { V0 =  1.9977, eta = 2.093 }
+dpp = { V0 =  1.9977, eta = 2.093 }
+dds = { V0 = -1.2327, eta = 2.0000 }
+ddp = { V0 =  2.5145, eta = 2.0000 }
+ddd = { V0 = -2.4734, eta = 2.0000 }
+
+[Ge_Ge]
+lattice_constant = 5.6563
+cutoff = 2.7
+
+[Ge_Ge.Ge]
+Es = -3.2967
+Ep = 4.6560
+Ed = 13.0143
+Ee = 19.1725
+delta3 = 0.1325
+
+[Ge_Ge.hopping]
+sss = { V0 = -1.5003, eta = 3.631 }
+sps = { V0 =  2.7986, eta = 3.713 }
+pss = { V0 =  2.7986, eta = 3.713 }
+ees = { V0 = -1.9206, eta = 0.0000 }
+ses = { V0 = -1.9206, eta = 0.0000 }
+ess = { V0 = -3.6029, eta = 0.0000 }
+eps = { V0 =  2.8177, eta = 1.830 }
+pes = { V0 =  2.8177, eta = 1.830 }
+pps = { V0 =  4.2541, eta = 2.030 }
+ppp = { V0 = -1.6510, eta = 4.025 }
+sds = { V0 = -2.8028, eta = 1.931 }
+dss = { V0 = -2.8028, eta = 1.931 }
+eds = { V0 = -0.6209, eta = 2.0000 }
+des = { V0 = -0.6209, eta = 2.0000 }
+pds = { V0 = -2.2138, eta = 1.759 }
+dps = { V0 = -2.2138, eta = 1.759 }
+pdp = { V0 =  1.9001, eta = 1.872 }
+dpp = { V0 =  1.9001, eta = 1.872 }
+dds = { V0 = -1.2172, eta = 2.0000 }
+ddp = { V0 =  2.5054, eta = 2.0000 }
+ddd = { V0 = -2.1389, eta = 2.0000 }
+
+[P_Al]
+lattice_constant = 5.4635
+cutoff = 2.7
+
+[P_Al.P]
+Es = -5.3355
+Ep = 3.3471
+Ed = 14.1717
+Ee = 20.5963
+delta3 = 0.0196
+
+[P_Al.Al]
+Es = 0.9573
+Ep = 6.3392
+Ed = 14.1717
+Ee = 20.5963
+delta3 = 0.0073
+
+[P_Al.hopping]
+sss = { V0 = -1.7403, eta = 3.041 }
+ees = { V0 = -1.6448, eta = 0.0000 }
+ses = { V0 = -1.4307, eta = 0.0000 }
+ess = { V0 = -3.6444, eta = 0.0000 }
+sps = { V0 =  2.6146, eta = 3.408 }
+pss = { V0 =  2.7804, eta = 3.408 }
+eps = { V0 =  2.0632, eta = 1.816 }
+pes = { V0 =  2.3361, eta = 1.816 }
+pps = { V0 =  4.0355, eta = 2.138 }
+ppp = { V0 = -1.3077, eta = 3.871 }
+sds = { V0 = -2.5253, eta = 1.956 }
+dss = { V0 = -2.1687, eta = 1.956 }
+eds = { V0 = -0.7810, eta = 2.0000 }
+des = { V0 = -0.7211, eta = 2.0000 }
+pds = { V0 = -1.6750, eta = 1.843 }
+dps = { V0 = -1.8239, eta = 1.843 }
+pdp = { V0 =  1.8760, eta = 1.864 }
+dpp = { V0 =  2.1848, eta = 1.864 }
+dds = { V0 = -1.3479, eta = 2.0000 }
+ddp = { V0 =  2.3750, eta = 2.0000 }
+ddd = { V0 = -1.8464, eta = 2.0000 }
+
+[P_Ga]
+lattice_constant = 5.4509
+cutoff = 2.7
+
+[P_Ga.P]
+Es = -5.3379
+Ep = 3.3453
+Ed = 14.0431
+Ee = 20.3952
+delta3 = 0.0301
+
+[P_Ga.Ga]
+Es = 0.4005
+Ep = 6.3844
+Ed = 14.0431
+Ee = 20.3952
+delta3 = 0.0124
+
+[P_Ga.hopping]
+sss = { V0 = -1.7049, eta = 3.379 }
+ees = { V0 = -1.6034, eta = 0.0000 }
+ses = { V0 = -1.6358, eta = 0.0000 }
+ess = { V0 = -3.5704, eta = 0.0000 }
+sps = { V0 =  2.8074, eta = 3.360 }
+pss = { V0 =  2.9800, eta = 3.360 }
+eps = { V0 =  2.3886, eta = 1.819 }
+pes = { V0 =  2.1482, eta = 1.819 }
+pps = { V0 =  4.1988, eta = 2.124 }
+ppp = { V0 = -1.4340, eta = 3.927 }
+sds = { V0 = -2.7840, eta = 1.971 }
+dss = { V0 = -2.3143, eta = 1.971 }
+eds = { V0 = -0.6426, eta = 2.0000 }
+des = { V0 = -0.6589, eta = 2.0000 }
+pds = { V0 = -1.7911, eta = 1.832 }
+dps = { V0 = -1.8106, eta = 1.832 }
+pdp = { V0 =  1.8574, eta = 1.837 }
+dpp = { V0 =  2.2308, eta = 1.837 }
+dds = { V0 = -1.2268, eta = 2.0000 }
+ddp = { V0 =  2.2752, eta = 2.0000 }
+ddd = { V0 = -2.0124, eta = 2.0000 }
+
+[P_In]
+lattice_constant = 5.8687
+cutoff = 2.9
+
+[P_In.P]
+Es = -5.3321
+Ep = 3.3447
+Ed = 12.7756
+Ee = 18.8738
+delta3 = 0.0228
+
+[P_In.In]
+Es = 0.3339
+Ep = 6.4965
+Ed = 12.7756
+Ee = 18.8738
+delta3 = 0.1124
+
+[P_In.hopping]
+sss = { V0 = -1.4010, eta = 3.113 }
+ees = { V0 = -1.8450, eta = 0.0000 }
+ses = { V0 = -1.2867, eta = 0.0000 }
+ess = { V0 = -3.6898, eta = 0.0000 }
+sps = { V0 =  2.1660, eta = 3.582 }
+pss = { V0 =  2.6440, eta = 3.582 }
+eps = { V0 =  2.5652, eta = 1.692 }
+pes = { V0 =  2.0521, eta = 1.692 }
+pps = { V0 =  4.0203, eta = 1.825 }
+ppp = { V0 = -1.2807, eta = 4.153 }
+sds = { V0 = -2.5559, eta = 1.993 }
+dss = { V0 = -2.2192, eta = 1.993 }
+eds = { V0 = -0.7912, eta = 2.0000 }
+des = { V0 = -0.8166, eta = 2.0000 }
+pds = { V0 = -1.9239, eta = 1.772 }
+dps = { V0 = -1.8851, eta = 1.772 }
+pdp = { V0 =  1.5679, eta = 1.732 }
+dpp = { V0 =  1.7763, eta = 1.732 }
+dds = { V0 = -1.2482, eta = 2.0000 }
+ddp = { V0 =  2.1487, eta = 2.0000 }
+ddd = { V0 = -1.6857, eta = 2.0000 }
+
+[As_Al]
+lattice_constant = 5.660
+cutoff = 2.8
+
+[As_Al.As]
+Es = -5.9819
+Ep = 3.5826
+Ed = 13.0570
+Ee = 19.5133
+delta3 = 0.1721
+
+[As_Al.Al]
+Es = 0.9574
+Ep = 6.3386
+Ed = 13.0570
+Ee = 19.5133
+delta3 = 0.0072
+
+[As_Al.hopping]
+sss = { V0 = -1.7292, eta = 3.379 }
+ees = { V0 = -1.6167, eta = 0.0000 }
+ses = { V0 = -1.2688, eta = 0.0000 }
+ess = { V0 = -3.6094, eta = 0.0000 }
+sps = { V0 =  2.5175, eta = 3.360 }
+pss = { V0 =  2.7435, eta = 3.360 }
+eps = { V0 =  2.1190, eta = 1.819 }
+pes = { V0 =  2.1989, eta = 1.819 }
+pps = { V0 =  4.2460, eta = 2.124 }
+ppp = { V0 = -1.3398, eta = 3.927 }
+sds = { V0 = -2.5535, eta = 1.971 }
+dss = { V0 = -2.3869, eta = 1.971 }
+eds = { V0 = -0.8064, eta = 2.0000 }
+des = { V0 = -0.7442, eta = 2.0000 }
+pds = { V0 = -1.7240, eta = 1.832 }
+dps = { V0 = -1.7601, eta = 1.832 }
+pdp = { V0 =  1.7776, eta = 1.837 }
+dpp = { V0 =  2.0928, eta = 1.837 }
+dds = { V0 = -1.2175, eta = 2.0000 }
+ddp = { V0 =  2.1693, eta = 2.0000 }
+ddd = { V0 = -1.7540, eta = 2.0000 }
+
+[As_Ga]
+lattice_constant = 5.6532
+cutoff = 2.8
+
+[As_Ga.As]
+Es = -5.9819
+Ep = 3.5820
+Ed = 13.1023
+Ee = 19.4220
+delta3 = 0.1824
+
+[As_Ga.Ga]
+Es = -0.4028
+Ep = 6.3853
+Ed = 13.1023
+Ee = 19.4220
+delta3 = 0.0408
+
+[As_Ga.hopping]
+sss = { V0 = -1.6187, eta = 3.113 }
+ees = { V0 = -1.9927, eta = 0.0000 }
+ses = { V0 = -1.5648, eta = 0.0000 }
+ess = { V0 = -3.6761, eta = 0.0000 }
+sps = { V0 =  2.4912, eta = 3.582 }
+pss = { V0 =  2.9382, eta = 3.582 }
+eps = { V0 =  2.1835, eta = 1.692 }
+pes = { V0 =  2.2086, eta = 1.692 }
+pps = { V0 =  4.4094, eta = 1.825 }
+ppp = { V0 = -1.5648, eta = 4.153 }
+sds = { V0 = -2.7333, eta = 1.993 }
+dss = { V0 = -2.4095, eta = 1.993 }
+eds = { V0 = -0.6906, eta = 2.0000 }
+des = { V0 = -0.6486, eta = 2.0000 }
+pds = { V0 = -1.7811, eta = 1.772 }
+dps = { V0 = -1.8002, eta = 1.772 }
+pdp = { V0 =  1.7821, eta = 1.732 }
+dpp = { V0 =  2.0709, eta = 1.732 }
+dds = { V0 = -1.1409, eta = 2.0000 }
+ddp = { V0 =  2.2030, eta = 2.0000 }
+ddd = { V0 = -1.9770, eta = 2.0000 }
+
+[As_In]
+lattice_constant = 6.0583
+cutoff = 3.0
+
+[As_In.As]
+Es = -5.9801
+Ep = 3.5813
+Ed = 12.9540
+Ee = 17.8411
+delta3 = 0.1763
+
+[As_In.In]
+Es = 0.3333
+Ep = 4.6939
+Ed = 12.9540
+Ee = 17.8411
+delta3 = 0.4008
+
+[As_In.hopping]
+sss = { V0 = -1.4789, eta = 3.640 }
+ees = { V0 = -2.1320, eta = 0.0000 }
+ses = { V0 = -1.2219, eta = 0.0000 }
+ess = { V0 = -3.8514, eta = 0.0000 }
+sps = { V0 =  2.3159, eta = 3.582 }
+pss = { V0 =  2.8006, eta = 3.582 }
+eps = { V0 =  2.6467, eta = 1.712 }
+pes = { V0 =  1.9012, eta = 1.712 }
+pps = { V0 =  4.1188, eta = 2.045 }
+ppp = { V0 = -1.3687, eta = 4.126 }
+sds = { V0 = -2.5828, eta = 1.954 }
+dss = { V0 = -2.4499, eta = 1.954 }
+eds = { V0 = -0.8497, eta = 2.0000 }
+des = { V0 = -0.8371, eta = 2.0000 }
+pds = { V0 = -2.1222, eta = 1.827 }
+dps = { V0 = -2.0584, eta = 1.827 }
+pdp = { V0 =  1.5462, eta = 1.651 }
+dpp = { V0 =  1.8364, eta = 1.651 }
+dds = { V0 = -1.2009, eta = 2.0000 }
+ddp = { V0 =  2.1820, eta = 2.0000 }
+ddd = { V0 = -1.7788, eta = 2.0000 }
+
+[Sb_Al]
+lattice_constant = 6.1355
+cutoff = 3.0
+
+[Sb_Al.Sb]
+Es = -4.9565
+Ep = 4.0739
+Ed = 11.4691
+Ee = 16.4173
+delta3 = 0.3912
+
+[Sb_Al.Al]
+Es = 0.9521
+Ep = 6.4939
+Ed = 11.4691
+Ee = 16.4173
+delta3 = 0.0079
+
+[Sb_Al.hopping]
+sss = { V0 = -1.6179, eta = 3.348 }
+ees = { V0 = -1.9813, eta = 0.0000 }
+ses = { V0 = -1.2097, eta = 0.0000 }
+ess = { V0 = -3.3145, eta = 0.0000 }
+sps = { V0 =  2.5918, eta = 3.662 }
+pss = { V0 =  2.9334, eta = 3.662 }
+eps = { V0 =  2.4649, eta = 1.762 }
+pes = { V0 =  1.8889, eta = 1.762 }
+pps = { V0 =  4.1042, eta = 1.498 }
+ppp = { V0 = -1.5273, eta = 4.259 }
+sds = { V0 = -2.7920, eta = 1.776 }
+dss = { V0 = -2.0008, eta = 1.776 }
+eds = { V0 = -0.7307, eta = 2.0000 }
+des = { V0 = -0.7878, eta = 2.0000 }
+pds = { V0 = -1.9819, eta = 1.740 }
+dps = { V0 = -1.9726, eta = 1.740 }
+pdp = { V0 =  1.8364, eta = 1.696 }
+dpp = { V0 =  1.8670, eta = 1.696 }
+dds = { V0 = -1.1395, eta = 2.0000 }
+ddp = { V0 =  2.1206, eta = 2.0000 }
+ddd = { V0 = -1.7260, eta = 2.0000 }
+
+[Sb_Ga]
+lattice_constant = 6.0959
+cutoff = 3.0
+
+[Sb_Ga.Sb]
+Es = -4.9586
+Ep = 4.0735
+Ed = 11.5944
+Ee = 16.6388
+delta3 = 0.4552
+
+[Sb_Ga.Ga]
+Es = -0.4003
+Ep = 6.3801
+Ed = 11.5944
+Ee = 16.6388
+delta3 = 0.0432
+
+[Sb_Ga.hopping]
+sss = { V0 = -1.3671, eta = 3.245 }
+ees = { V0 = -2.3255, eta = 0.0000 }
+ses = { V0 = -1.6622, eta = 0.0000 }
+ess = { V0 = -3.2255, eta = 0.0000 }
+sps = { V0 =  2.5624, eta = 3.702 }
+pss = { V0 =  2.7093, eta = 3.702 }
+eps = { V0 =  3.0164, eta = 1.772 }
+pes = { V0 =  2.4596, eta = 1.772 }
+pps = { V0 =  4.4500, eta = 1.763 }
+ppp = { V0 = -1.6809, eta = 4.152 }
+sds = { V0 = -2.6143, eta = 1.721 }
+dss = { V0 = -2.4274, eta = 1.721 }
+eds = { V0 = -0.8557, eta = 2.0000 }
+des = { V0 = -0.8007, eta = 2.0000 }
+pds = { V0 = -2.0377, eta = 1.797 }
+dps = { V0 = -2.2429, eta = 1.797 }
+pdp = { V0 =  1.9790, eta = 1.557 }
+dpp = { V0 =  2.1292, eta = 1.557 }
+dds = { V0 = -1.2492, eta = 2.0000 }
+ddp = { V0 =  1.9970, eta = 2.0000 }
+ddd = { V0 = -1.7451, eta = 2.0000 }
+
+[Sb_In]
+lattice_constant = 6.4794
+cutoff = 3.2
+
+[Sb_In.Sb]
+Es = -4.9527
+Ep = 4.0797
+Ed = 11.2647
+Ee = 16.1664
+delta3 = 0.4495
+
+[Sb_In.In]
+Es = 0.3389
+Ep = 6.4919
+Ed = 11.2647
+Ee = 16.1664
+delta3 = 0.1230
+
+[Sb_In.hopping]
+sss = { V0 = -1.1290, eta = 3.991 }
+ees = { V0 = -2.0042, eta = 0.0000 }
+ses = { V0 = -1.8819, eta = 0.0000 }
+ess = { V0 = -3.2248, eta = 0.0000 }
+sps = { V0 =  2.5362, eta = 3.671 }
+pss = { V0 =  2.6980, eta = 3.671 }
+eps = { V0 =  2.3471, eta = 1.755 }
+pes = { V0 =  2.3471, eta = 1.755 }
+pps = { V0 =  4.1830, eta = 1.348 }
+ppp = { V0 = -1.4688, eta = 4.297 }
+sds = { V0 = -2.5635, eta = 1.778 }
+dss = { V0 = -2.3085, eta = 1.778 }
+eds = { V0 = -0.7371, eta = 2.0000 }
+des = { V0 = -0.8144, eta = 2.0000 }
+pds = { V0 = -2.1487, eta = 1.734 }
+dps = { V0 = -2.1652, eta = 1.734 }
+pdp = { V0 =  1.8462, eta = 1.675 }
+dpp = { V0 =  1.8491, eta = 1.675 }
+dds = { V0 = -1.3052, eta = 2.0000 }
+ddp = { V0 =  2.0784, eta = 2.0000 }
+ddd = { V0 = -1.4118, eta = 2.0000 }
